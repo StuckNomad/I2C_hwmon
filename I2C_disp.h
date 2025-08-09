@@ -48,3 +48,4 @@ void lcd_clear(struct i2c_client* client);
 void lcd_set_cursor(struct i2c_client* client, int line, int position);
 void lcd_char(struct i2c_client* client, char val);
 void lcd_string(struct i2c_client* client, const char *s);
+void lcd_init(struct i2c_client* client, const char* init_msg);

@@ -46,3 +46,17 @@ void lcd_string(struct i2c_client* client, const char *s) {
         lcd_char(client, *s++);
     }
 }
+
+void lcd_init(struct i2c_client* client, const char* init_msg){
+    lcd_send_byte(client, 0x03, LCD_COMMAND);
+    lcd_send_byte(client, 0x03, LCD_COMMAND);
+    lcd_send_byte(client, 0x03, LCD_COMMAND);
+    lcd_send_byte(client, 0x02, LCD_COMMAND);
+
+    lcd_send_byte(client, LCD_ENTRYMODESET | LCD_ENTRYLEFT, LCD_COMMAND);
+    lcd_send_byte(client, LCD_FUNCTIONSET | LCD_2LINE, LCD_COMMAND);
+    lcd_send_byte(client, LCD_DISPLAYCONTROL | LCD_DISPLAYON, LCD_COMMAND);
+    lcd_clear(client);
+
+    lcd_string(client, init_msg);
+}

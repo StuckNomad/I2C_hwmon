@@ -1,20 +1,35 @@
-#include<linux/init.h>
-#include<linux/module.h>
-#include<linux/mod_devicetable.h>
-#include<linux/of_device.h>
-#include<linux/i2c.h>
-#include<linux/delay.h>
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/mod_devicetable.h>
+#include <linux/of_device.h>
+#include <linux/i2c.h>
+#include <linux/delay.h>
+#include <linux/kernel.h>
+#include <linux/jiffies.h>
+#include <linux/timer.h>
+#include <linux/thermal.h>
+
 
 #include "I2C_disp.h"
+
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Nithish");
 MODULE_DESCRIPTION("Driver for I2C LCD display");
 
+/* Call back functions */
+
 static int I2C_LCD_probe(struct i2c_client *client);
 static void I2C_LCD_remove(struct i2c_client *client);
+void disp_callback(struct timer_list* ptimer);
+
+/* Display worker to update contents */
+
+void disp_work(struct work_struct* work);
 
 static struct i2c_client *LCD_client;
+static struct timer_list disp_timer;
+DECLARE_WORK(dispWork, disp_work);
 
 static int major;
 
@@ -67,6 +82,41 @@ static struct file_operations fops = {
     .write = LCD_write,
 };
 
+/* This work is queued up by timer's callback function */
+void disp_work(struct work_struct* work){
+    struct thermal_zone_device *tz;
+    int temperature; 
+    char lcd_buff[16];
+
+    tz = thermal_zone_get_zone_by_name("cpu-thermal");
+    if(tz == NULL){
+        printk("I2C_LCD: Failed to get thermal zone\n");
+    }
+
+    thermal_zone_get_temp(tz, &temperature);
+    temperature /= 1000;
+
+    snprintf(lcd_buff, sizeof(lcd_buff), "T:%d", temperature);
+
+    // printk("I2C_LCD: temp: %d\n", temperature);
+
+    lcd_clear(LCD_client);
+    lcd_string(LCD_client, lcd_buff);
+
+    return;
+}
+
+/* 
+This callback is called by timer after specified time and 
+this function also restarts that timer.
+*/ 
+
+void disp_callback(struct timer_list* ptimer){
+    // printk("I2C_LCD: timeout triggered\n");
+    schedule_work(&dispWork);
+    mod_timer(&disp_timer, jiffies + msecs_to_jiffies(1000));
+}
+
 static int I2C_LCD_probe(struct i2c_client *client){
     major = register_chrdev(0, "I2C_LCD", &fops);
     if(major < 0){
@@ -78,17 +128,13 @@ static int I2C_LCD_probe(struct i2c_client *client){
 
     printk("I2C_LCD - Major device number: %d, I2C_client_addr: %x\n", major, client->addr);
 
-    lcd_send_byte(LCD_client, 0x03, LCD_COMMAND);
-    lcd_send_byte(LCD_client, 0x03, LCD_COMMAND);
-    lcd_send_byte(LCD_client, 0x03, LCD_COMMAND);
-    lcd_send_byte(LCD_client, 0x02, LCD_COMMAND);
+    /* initialize LCD with init message. */
+    lcd_init(LCD_client, "Hello World!");
 
-    lcd_send_byte(LCD_client, LCD_ENTRYMODESET | LCD_ENTRYLEFT, LCD_COMMAND);
-    lcd_send_byte(LCD_client, LCD_FUNCTIONSET | LCD_2LINE, LCD_COMMAND);
-    lcd_send_byte(LCD_client, LCD_DISPLAYCONTROL | LCD_DISPLAYON, LCD_COMMAND);
-    lcd_clear(LCD_client);
 
-    lcd_string(LCD_client, "Hello World!");
+    /* initialize timer.  */
+    timer_setup(&disp_timer, disp_callback, 0);
+    mod_timer(&disp_timer, jiffies + msecs_to_jiffies(1000));
 
     return 0;
 
@@ -96,6 +142,7 @@ static int I2C_LCD_probe(struct i2c_client *client){
 
 static void I2C_LCD_remove(struct i2c_client *client){
     lcd_clear(client);
+    flush_work(&dispWork);
     unregister_chrdev(major, "I2C_LCD");
     return;
 }
@@ -112,6 +159,7 @@ static int __init LCD_init(void){
 static void __exit LCD_exit(void){
     printk("I2C_LCD: exiting from the driver\n");
     i2c_del_driver(&my_driver);
+    del_timer(&disp_timer);
 }
 
 module_init(LCD_init);
