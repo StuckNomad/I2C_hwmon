@@ -7,10 +7,10 @@
 #include <linux/kernel.h>
 #include <linux/jiffies.h>
 #include <linux/timer.h>
-#include <linux/thermal.h>
 
 
 #include "I2C_disp.h"
+#include "I2C_sysinfo.h"
 
 
 MODULE_LICENSE("GPL");
@@ -84,19 +84,14 @@ static struct file_operations fops = {
 
 /* This work is queued up by timer's callback function */
 void disp_work(struct work_struct* work){
-    struct thermal_zone_device *tz;
-    int temperature; 
+    int temperature=0;
+    int mem_usage=0;
     char lcd_buff[16];
 
-    tz = thermal_zone_get_zone_by_name("cpu-thermal");
-    if(tz == NULL){
-        printk("I2C_LCD: Failed to get thermal zone\n");
-    }
+    get_thermal_info(&temperature);
+    get_mem_info(&mem_usage);
 
-    thermal_zone_get_temp(tz, &temperature);
-    temperature /= 1000;
-
-    snprintf(lcd_buff, sizeof(lcd_buff), "T:%d", temperature);
+    snprintf(lcd_buff, sizeof(lcd_buff), "T:%d'c M:%d%%", temperature, mem_usage);
 
     // printk("I2C_LCD: temp: %d\n", temperature);
 
