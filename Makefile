@@ -1,6 +1,6 @@
-obj-m += I2C_hwmon_driver.o 
+obj-m += I2Chwmon.o 
 
-I2C_hwmon_driver-objs := I2C_hwmon.o  I2C_disp.o
+I2Chwmon-objs := I2C_hwmon.o  I2C_disp.o I2C_sysinfo.o
 
 all: module dt
 		echo builded device tree overlay and kernel module
