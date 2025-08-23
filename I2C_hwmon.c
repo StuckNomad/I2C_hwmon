@@ -57,7 +57,7 @@ static struct i2c_driver my_driver = {
 };
 
 static ssize_t LCD_write(struct file *File, const char *user_buffer, size_t count, loff_t *offs){
-    int content_len = count > 16 ? 16 : count;
+    int content_len = MIN(count, 16);
     char content[16];
     int status;
 
