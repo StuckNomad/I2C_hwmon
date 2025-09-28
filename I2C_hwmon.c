@@ -17,6 +17,11 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Nithish");
 MODULE_DESCRIPTION("Driver for I2C LCD display");
 
+/* global variables */
+
+static int major;
+cpu_time_info *cpus;
+
 /* Call back functions */
 
 static int I2C_LCD_probe(struct i2c_client *client);
@@ -30,8 +35,6 @@ void disp_work(struct work_struct* work);
 static struct i2c_client *LCD_client;
 static struct timer_list disp_timer;
 DECLARE_WORK(dispWork, disp_work);
-
-static int major;
 
 static struct of_device_id i2c_driver_ids[] = {
     {
@@ -86,18 +89,22 @@ static struct file_operations fops = {
 void disp_work(struct work_struct* work){
     int temperature=0;
     int mem_usage=0;
+    int cpu_usage=0;
     char lcd_buff[16];
 
     get_thermal_info(&temperature);
     get_mem_info(&mem_usage);
+    get_cpu_info(&cpu_usage, cpus);
 
-    snprintf(lcd_buff, sizeof(lcd_buff), "T:%d'c M:%d%%", temperature, mem_usage);
+    snprintf(lcd_buff, sizeof(lcd_buff), "T:%d M:%d C:%d.%d", 
+                        temperature, 
+                        mem_usage,
+                        cpu_usage/10, cpu_usage%10);
 
     // printk("I2C_LCD: temp: %d\n", temperature);
 
     lcd_clear(LCD_client);
     lcd_string(LCD_client, lcd_buff);
-
     return;
 }
 
@@ -126,6 +133,9 @@ static int I2C_LCD_probe(struct i2c_client *client){
     /* initialize LCD with init message. */
     lcd_init(LCD_client, "Hello World!");
 
+    /* used for CPU stats */
+    cpus = (cpu_time_info*)kmalloc(NR_CPUS * sizeof(cpu_time_info), GFP_KERNEL);
+
 
     /* initialize timer.  */
     timer_setup(&disp_timer, disp_callback, 0);
@@ -139,6 +149,7 @@ static void I2C_LCD_remove(struct i2c_client *client){
     lcd_clear(client);
     flush_work(&dispWork);
     unregister_chrdev(major, "I2C_LCD");
+    kfree(cpus);
     return;
 }
 
